@@ -1,4 +1,3 @@
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,9 +36,19 @@ lines = cv2.HoughLinesP(roi_image, 1, np.pi/180, 100, minLineLength=100, maxLine
 # Step 8) Draw Hough lines
 def draw_lines(image, hough_lines):
 
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        cv2.line(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    if hough_lines is None:
+        return image
+
+    for line in hough_lines:
+        x1, y1, x2, y2 = line
+
+        cv2.line(
+            image,
+            (x1, y1),
+            (x2, y2),
+            (0, 255, 0),
+            2
+        )
 
     return image
 
