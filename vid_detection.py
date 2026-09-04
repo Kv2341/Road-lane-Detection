@@ -1,77 +1,211 @@
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 
 
+# -----------------------------------
+# Region of Interest
+# -----------------------------------
 def roi(image, vertices):
     mask = np.zeros_like(image)
-    mask_color = 255
-    cv2.fillPoly(mask, vertices, mask_color)
+
+    cv2.fillPoly(mask, vertices, 255)
+
     cropped_img = cv2.bitwise_and(image, mask)
+
     return cropped_img
 
 
+# -----------------------------------
+# Draw Hough Lines
+# -----------------------------------
 def draw_lines(image, hough_lines):
+
+    if hough_lines is None:
+        return image
+
     for line in hough_lines:
-        x1, y1, x2, y2 = line[0]
-        cv2.line(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        x1, y1, x2, y2 = line
+
+        cv2.line(
+            image,
+            (x1, y1),
+            (x2, y2),
+            (0, 255, 0),
+            2
+        )
 
     return image
 
 
-# img = cv2.imread("saved_frame.jpg")
-# img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-
+# -----------------------------------
+# Process Frame
+# -----------------------------------
 def process(img):
+
+    if img is None:
+        return None
+
     height = img.shape[0]
     width = img.shape[1]
+
+    # Define ROI
     roi_vertices = [
         (0, 650),
-        (2*width/3, 2*height/3),
+        (int(2 * width / 3), int(2 * height / 3)),
         (width, 1000)
     ]
 
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray_img = cv2.dilate(gray_img, kernel=np.ones((3, 3), np.uint8))
+    # Grayscale
+    gray_img = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2GRAY
+    )
 
-    canny = cv2.Canny(gray_img, 130, 220)
+    # Dilation
+    kernel = np.ones(
+        (3, 3),
+        np.uint8
+    )
 
-    roi_img = roi(canny, np.array([roi_vertices], np.int32))
+    gray_img = cv2.dilate(
+        gray_img,
+        kernel
+    )
 
-    lines = cv2.HoughLinesP(roi_img, 1, np.pi / 180, threshold=10, minLineLength=15, maxLineGap=2)
+    # Canny Edge Detection
+    canny = cv2.Canny(
+        gray_img,
+        130,
+        220
+    )
 
-    final_img = draw_lines(img, lines)
+    # ROI
+    roi_img = roi(
+        canny,
+        np.array(
+            [roi_vertices],
+            np.int32
+        )
+    )
+
+    # Hough Lines
+    lines = cv2.HoughLinesP(
+        roi_img,
+        1,
+        np.pi / 180,
+        threshold=10,
+        minLineLength=15,
+        maxLineGap=2
+    )
+
+    # Draw lines
+    final_img = draw_lines(
+        img,
+        lines
+    )
 
     return final_img
 
 
-cap = cv2.VideoCapture("./Data/lane_vid2.mp4")
+# -----------------------------------
+# Open Input Video
+# -----------------------------------
+video_path = "./Data/lane_vid2.mp4"
 
-frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fourcc = cv2.VideoWriter_fourcc(*"XVID")
-saved_frame = cv2.VideoWriter("lane_detection.avi", fourcc, 30.0, (frame_width, frame_height))
+cap = cv2.VideoCapture(video_path)
 
-while cap.isOpened():
+if not cap.isOpened():
+
+    print("ERROR: Could not open:")
+    print(video_path)
+
+    exit()
+
+
+# -----------------------------------
+# Video Properties
+# -----------------------------------
+frame_width = int(
+    cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+)
+
+frame_height = int(
+    cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+)
+
+fps = cap.get(cv2.CAP_PROP_FPS)
+
+if fps <= 0:
+    fps = 30.0
+
+
+# -----------------------------------
+# Output Video
+# -----------------------------------
+fourcc = cv2.VideoWriter_fourcc(
+    *"XVID"
+)
+
+output_path = "lane_detection.avi"
+
+saved_frame = cv2.VideoWriter(
+    output_path,
+    fourcc,
+    fps,
+    (frame_width, frame_height)
+)
+
+if not saved_frame.isOpened():
+
+    print("ERROR: Could not create output video.")
+
+    cap.release()
+
+    exit()
+
+
+# -----------------------------------
+# Process Video
+# -----------------------------------
+while True:
+
     ret, frame = cap.read()
 
-    try:
-        frame = process(frame)
-
-        saved_frame.write(frame)
-        cv2.imshow("frame", frame)
-
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-
-    except Exception:
+    # Video finished
+    if not ret:
+        print("Video processing completed.")
         break
 
+    # Process frame
+    frame = process(frame)
+
+    if frame is None:
+        print("ERROR: Frame processing failed.")
+        break
+
+    # Save frame
+    saved_frame.write(frame)
+
+    # Display
+    cv2.imshow(
+        "Road Lane Detection",
+        frame
+    )
+
+    # ESC to stop
+    if cv2.waitKey(1) & 0xFF == 27:
+        print("Processing stopped by user.")
+        break
+
+
+# -----------------------------------
+# Cleanup
+# -----------------------------------
 cap.release()
+
 saved_frame.release()
+
 cv2.destroyAllWindows()
 
-# result = process(img)
-# plt.imshow(result)
-# plt.show()
+print("Output saved as:", output_path)
